@@ -2,6 +2,7 @@ package com.strayhelp.backend.service;
 
 import com.strayhelp.backend.dto.PetRequest;
 import com.strayhelp.backend.dto.PetResponse;
+import com.strayhelp.backend.exception.PetNotFoundException;
 import com.strayhelp.backend.model.Pet;
 import com.strayhelp.backend.model.PetStatus;
 import com.strayhelp.backend.repository.PetRepository;
@@ -9,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.UUID;
 
 // @Service marks this as a Spring-managed bean in the service layer
@@ -60,7 +60,7 @@ public class PetService {
 
     public PetResponse getById(UUID id) {
         Pet pet = petRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Pet not found: " + id));
+                .orElseThrow(() -> new PetNotFoundException("Pet not found: " + id));
 
         return toResponse(pet);
     }
