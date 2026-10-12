@@ -8,6 +8,7 @@ import com.strayhelp.backend.model.PetStatus;
 import com.strayhelp.backend.repository.PetRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -61,6 +62,32 @@ public class PetService {
     public PetResponse getById(UUID id) {
         Pet pet = petRepository.findById(id)
                 .orElseThrow(() -> new PetNotFoundException("Pet not found: " + id));
+
+        return toResponse(pet);
+    }
+
+    @Transactional
+    // @Transactional opens one database transaction around this method. Because
+    // `pet` below is loaded inside that same transaction, Hibernate treats it as
+    // a "managed" entity and watches it for changes ("dirty checking"): when the
+    // transaction commits, Hibernate compares the entity's current field values
+    // against the ones it loaded and issues an UPDATE for whatever changed —
+    // no explicit petRepository.save(pet) call is needed here.
+    public PetResponse updatePet(UUID id, PetRequest request) {
+        Pet pet = petRepository.findById(id)
+                .orElseThrow(() -> new PetNotFoundException("Pet not found: " + id));
+
+        // Only the client-editable fields are copied over; id, status, and
+        // createdAt are server-owned and must survive an update untouched.
+        pet.setName(request.getName());
+        pet.setSpecies(request.getSpecies());
+        pet.setBreed(request.getBreed());
+        pet.setAge(request.getAge());
+        pet.setGender(request.getGender());
+        pet.setSize(request.getSize());
+        pet.setDescription(request.getDescription());
+        pet.setLocation(request.getLocation());
+        pet.setContactPhone(request.getContactPhone());
 
         return toResponse(pet);
     }
