@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<!-- THROWAWAY spike, delete after Phase 2 -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>StrayHelp — Pet CRUD Spike</title>
+<style>
+  body { font-family: sans-serif; max-width: 700px; margin: 2rem auto; padding: 0 1rem; }
+  form { display: grid; gap: 0.5rem; margin-bottom: 1.5rem; }
+  input, select, textarea { padding: 0.3rem; }
+  table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+  th, td { border: 1px solid #ccc; padding: 0.4rem; text-align: left; font-size: 0.9rem; }
+  button { cursor: pointer; }
+  #error { color: #b00020; white-space: pre-wrap; margin-top: 1rem; }
+</style>
+</head>
+<body>
+
+<h1>StrayHelp — Pet CRUD Spike</h1>
+
+<form id="pet-form">
+  <!-- editingId is hidden state: empty = create (POST), set = edit (PUT) -->
+  <input type="hidden" id="editingId" value="">
+
+  <label>Name <input type="text" id="name"></label>
+  <label>Species <input type="text" id="species"></label>
+  <label>Breed <input type="text" id="breed"></label>
+  <label>Age <input type="number" id="age" min="0"></label>
+
+  <label>Gender
+    <select id="gender">
+      <option value="MALE">MALE</option>
+      <option value="FEMALE">FEMALE</option>
+      <option value="UNKNOWN">UNKNOWN</option>
+    </select>
+  </label>
+
+  <label>Size
+    <select id="size">
+      <option value="TINY">TINY</option>
+      <option value="SMALL">SMALL</option>
+      <option value="MEDIUM">MEDIUM</option>
+      <option value="LARGE">LARGE</option>
+      <option value="GIANT">GIANT</option>
+    </select>
+  </label>
+
+  <label>Description <textarea id="description"></textarea></label>
+  <label>Location <input type="text" id="location"></label>
+  <label>Contact Phone <input type="text" id="contactPhone"></label>
+
+  <div>
+    <button type="submit" id="submit-btn">Create</button>
+    <button type="button" id="cancel-btn" style="display:none;">Cancel edit</button>
+  </div>
+</form>
+
+<h2>Pets</h2>
+<table>
+  <thead>
+    <tr><th>Name</th><th>Species</th><th>Status</th><th>Location</th><th>Updated</th><th></th></tr>
+  </thead>
+  <tbody id="pet-rows"></tbody>
+</table>
+
+<pre id="error"></pre>
+
+<script>
+  // API_BASE is the one place this spike points at the backend — change
+  // this if the backend ever runs on a different host/port.
+  const API_BASE = "http://localhost:8080/api/pets";
+
+  const form = document.getElementById("pet-form");
+  const editingIdInput = document.getElementById("editingId");
+  const submitBtn = document.getElementById("submit-btn");
+  const cancelBtn = document.getElementById("cancel-btn");
+  const errorBox = document.getElementById("error");
+
+  function showError(status, body) {
+    errorBox.textContent = `HTTP ${status}\n${body}`;
+  }
+
+  function clearError() {
+    errorBox.textContent = "";
+  }
+
+  function readForm() {
+    // PetRequest shape on the backend — only client-editable fields.
+    return {
+      name: document.getElementById("name").value || null,
+      species: document.getElementById("species").value,
+      breed: document.getElementById("breed").value || null,
+      age: document.getElementById("age").value ? Number(document.getElementById("age").value) : null,
+      gender: document.getElementById("gender").value,
+      size: document.getElementById("size").value,
+      description: document.getElementById("description").value,
+      location: document.getElementById("location").value,
+      contactPhone: document.getElementById("contactPhone").value
+    };
+  }
+
+  function fillForm(pet) {
+    editingIdInput.value = pet.id;
+    document.getElementById("name").value = pet.name || "";
+    document.getElementById("species").value = pet.species || "";
+    document.getElementById("breed").value = pet.breed || "";
+    document.getElementById("age").value = pet.age ?? "";
+    document.getElementById("gender").value = pet.gender;
+    document.getElementById("size").value = pet.size;
+    document.getElementById("description").value = pet.description || "";
+    document.getElementById("location").value = pet.location || "";
+    document.getElementById("contactPhone").value = pet.contactPhone || "";
+    submitBtn.textContent = "Save";
+    cancelBtn.style.display = "inline";
+  }
+
+  function resetForm() {
+    form.reset();
+    editingIdInput.value = "";
+    submitBtn.textContent = "Create";
+    cancelBtn.style.display = "none";
+  }
+
+  cancelBtn.addEventListener("click", resetForm);
+
+  // async/await lets this read top-to-bottom like synchronous code instead
+  // of chaining .then() callbacks; "await" pauses this function (without
+  // blocking the browser) until the Promise from fetch()/response.json()
+  // resolves.
+  async function loadPets() {
+    clearError();
+    const response = await fetch(API_BASE);
+    const body = await response.text();
+
+    if (!response.ok) {
+      showError(response.status, body);
+      return;
+    }
+
+    const pets = JSON.parse(body);
+    renderPets(pets);
+  }
+
+  function renderPets(pets) {
+    const rows = document.getElementById("pet-rows");
+    rows.innerHTML = "";
+
+    for (const pet of pets) {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${pet.name ?? ""}</td>
+        <td>${pet.species ?? ""}</td>
+        <td>${pet.status ?? ""}</td>
+        <td>${pet.location ?? ""}</td>
+        <td>${pet.updatedAt ?? ""}</td>
+        <td>
+          <button data-action="edit">Edit</button>
+          <button data-action="delete">Delete</button>
+        </td>
+      `;
+      row.querySelector('[data-action="edit"]').addEventListener("click", () => fillForm(pet));
+      row.querySelector('[data-action="delete"]').addEventListener("click", () => deletePet(pet.id));
+      rows.appendChild(row);
+    }
+  }
+
+  async function deletePet(id) {
+    clearError();
+    const response = await fetch(`${API_BASE}/${id}`, { method: "DELETE" });
+
+    if (!response.ok) {
+      const body = await response.text();
+      showError(response.status, body);
+      return;
+    }
+
+    await loadPets();
+  }
+
+  form.addEventListener("submit", async (event) => {
+    // Forms POST and reload the page by default — this stops that so we
+    // can send the request ourselves with fetch() instead.
+    event.preventDefault();
+    clearError();
+
+    const id = editingIdInput.value;
+    const isEdit = id !== "";
+    const url = isEdit ? `${API_BASE}/${id}` : API_BASE;
+    const method = isEdit ? "PUT" : "POST";
+
+    const response = await fetch(url, {
+      method: method,
+      // The body is a JSON string, so we tell the server that explicitly
+      // via Content-Type — without it, Spring won't know to parse the
+      // body as JSON into the PetRequest DTO and will reject the request.
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(readForm())
+    });
+
+    const body = await response.text();
+
+    if (!response.ok) {
+      // Surfaces both 400 (bean validation failures on PetRequest) and
+      // 404 (PUT to an id that doesn't exist) so they're visible here
+      // instead of silently failing.
+      showError(response.status, body);
+      return;
+    }
+
+    resetForm();
+    await loadPets();
+  });
+
+  loadPets();
+</script>
+
+</body>
+</html>
