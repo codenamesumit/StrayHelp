@@ -92,6 +92,20 @@ public class PetService {
         return toResponse(pet);
     }
 
+    @Transactional
+    // We load the pet first instead of calling petRepository.deleteById(id)
+    // directly: deleteById() on an unknown id completes silently (no row to
+    // delete, no error), which would make the controller return 204 for an
+    // id that never existed. Loading it through the same findById()
+    // .orElseThrow(PetNotFoundException) lookup as the other methods means
+    // an unknown id correctly surfaces as 404 instead of a false success.
+    public void deletePet(UUID id) {
+        Pet pet = petRepository.findById(id)
+                .orElseThrow(() -> new PetNotFoundException("Pet not found: " + id));
+
+        petRepository.delete(pet);
+    }
+
     // Entity -> DTO mapping is pulled into one private helper so all three
     // public methods stay in sync automatically if a field is ever added -
     // without this, each method would need its own copy-pasted mapping,
